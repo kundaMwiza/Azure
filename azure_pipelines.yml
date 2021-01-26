@@ -1,0 +1,99 @@
+# trigger a build each time master or the develop branch has new changes
+trigger:
+  branches:
+    include:
+    - master
+    - develop
+
+# root variables
+variables:
+- name: package_name
+  value: "simple_package"
+- name: project_name
+  value: helloWorldAzure
+- name: feed_name
+  value: package_to_AML
+
+stages:
+
+- stage: "build"
+  displayName: "build"
+
+  jobs:
+
+  - job: "build_package"
+
+    # what to clean before the job runs
+    workspace:
+      clean: all
+    
+    # virtual machine image to use
+    pool: 
+      vmImage: "vs2017-win2016"
+
+    steps:
+
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: ">=3.7.0"
+        architecture: 'x64'
+
+    - script: |
+        python -m venv package_venv
+        call package_venv/Scripts/activate.bat
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+      displayName: "Setup environment for building the package"
+
+    - script: |
+        call package_venv/Scripts/activate.bat
+        pytest ${{variables.package_name}} --doctest-modules --junitxml=junit/test-results.xml --cov=${{variables.package_name}} --cov-report=xml --cov-report=html
+      displayName: "Run unit tests with pytest"
+
+    - task: PublishTestResults@2
+      inputs:
+        testResultsFiles: '**/test-results.xml'
+        testRunTitle: 'Publish test results for Python $(python.version)'
+
+    - task: PublishCodeCoverageResults@1
+      inputs:
+        codeCoverageTool: Cobertura
+        summaryFileLocation: '$(System.DefaultWorkingDirectory)/**/coverage.xml'
+        reportDirectory: '$(System.DefaultWorkingDirectory)/**/htmlcov'
+    
+    # set flake8 to exit with status 0 even if there are errors or warnings
+    # by providing the argument --exit-zero -> this can be checked later
+    - script: |
+        call package_venv/Scripts/activate.bat
+        python -m pip install flake8
+        flake8 ${{variables.package_name}} --exit-zero --output-file=linting_output.log
+      displayName: "Run lint tests"
+      continueOnError: True
+
+    - task: PublishBuildArtifacts@1
+      inputs:
+        pathtoPublish: "linting_output.log"
+        artifactName: "linting log file"
+      continueOnError: True
+
+    - script: |
+        call package_venv/Scripts/activate.bat
+        python -m pip install --upgrade setuptools wheel twine
+        python setup.py bdist_wheel
+      displayName: "Build package"
+    
+    - task: PublishBuildArtifacts@1
+      inputs:
+        pathtoPublish: dist/
+        artifactName: "Built package"
+
+    # authenticate twine and publish package to feed
+    - task: TwineAuthenticate@1
+      inputs:
+        artifactFeed: $(project_name)/$(feed_name)  
+    
+    - script: |
+        call package_venv/Scripts/activate.bat
+        python -m pip install twine
+        python -m twine upload -r $(feed_name) --skip-existing --config-file $(PYPIRC_PATH) dist/*.whl
+      displayName: "Upload package to Azure feed"
