@@ -1,0 +1,9 @@
+.venv
+.coverage
+test_report/
+.eggs
+build
+dist
+firstPackage.egg-info
+**/__pycache__
+notebooks
