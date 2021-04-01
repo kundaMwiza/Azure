@@ -1,0 +1,18 @@
+Package: simpleRpackage
+Title: A simple R package
+Version: 0.0.1
+Author: Mwiza Kunda
+Maintainer: Mwiza Kunda <mwizakunda@gmail.com>
+Description: A 
+  Nice 
+  Simple
+  Package.
+License: file LICENSE
+Encoding: UTF-8
+LazyData: true
+Suggests:
+    testthat (>= 2.1.0)
+    ,xml2
+    ,covr
+    ,devtools
+RoxygenNote: 7.1.1
